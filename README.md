@@ -15,7 +15,7 @@ This is [a port of the FFmpeg filter grayworld](https://github.com/FFmpeg/FFmpeg
 ### Usage:
 
 ```
-grayworld (clip input)
+grayworld (clip input, int "opt")
 ```
 
 ### Parameters:
@@ -23,6 +23,15 @@ grayworld (clip input)
 - input\
     A clip to process.\
     Must be in RGB(A) 32-bit planar format and in linear light.
+
+- opt\
+    Sets which cpu optimizations to use.\
+    -1: Auto-detect.\
+    0: Use C++ code.\
+    1: Use SSE2 code.\
+    2: Use AVX2 code.\
+    3: Use AVX512 code.\
+    Default: -1.
 
 ### Building:
 

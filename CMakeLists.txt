@@ -2,9 +2,17 @@ cmake_minimum_required(VERSION 3.16)
 
 project(libgrayworld LANGUAGES CXX)
 
-add_library(grayworld SHARED src/grayworld.cpp)
+add_library(grayworld SHARED
+    src/grayworld.cpp
+    src/grayworld_sse2.cpp
+    src/grayworld_avx2.cpp
+    src/grayworld_avx512.cpp
+)
 
-target_include_directories(grayworld PRIVATE /usr/local/include/avisynth)
+target_include_directories(grayworld PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    /usr/local/include/avisynth
+)
 
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
@@ -20,6 +28,10 @@ endif ()
 message(STATUS "Build type - ${CMAKE_BUILD_TYPE}")
 
 target_compile_features(grayworld PRIVATE cxx_std_17)
+
+set_source_files_properties(src/grayworld_sse2.cpp PROPERTIES COMPILE_OPTIONS "-mfpmath=sse;-msse2")
+set_source_files_properties(src/grayworld_avx2.cpp PROPERTIES COMPILE_OPTIONS "-mavx2;-mfma")
+set_source_files_properties(src/grayworld_avx512.cpp PROPERTIES COMPILE_OPTIONS "-mavx512f;-mavx512bw;-mavx512dq;-mavx512vl;-mfma")
 
 find_package (Git)
 
