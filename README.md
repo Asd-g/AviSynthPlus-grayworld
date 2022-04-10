@@ -35,8 +35,8 @@ grayworld (clip input, int "opt", int "cc")
 
 - cc\
     Color correction mode.\
-    0: Mean.
-    1: Median.
+    0: Mean.\
+    1: Median.\
     Default: 0.
 
 ### Building:
