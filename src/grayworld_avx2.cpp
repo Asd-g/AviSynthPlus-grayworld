@@ -42,6 +42,7 @@ static void lab2rgb(const Vec8f l_lab, const Vec8f a_lab, const Vec8f b_lab, Vec
     apply_matrix(lms2rgb, l_lms, m_lms, s_lms, r, g, b);
 }
 
+template <grayworld_mode mode>
 void convert_frame_avx2(float* __restrict tmpplab, PVideoFrame& src, float* line_sum, int* line_count_pels, const int pitch, const int width, const int height) noexcept
 {
     const int width_mod8{ width - (width % 8) };
@@ -65,65 +66,96 @@ void convert_frame_avx2(float* __restrict tmpplab, PVideoFrame& src, float* line
         float* bcur{ tmpplab + y * width + 2 * width * height };
         float* lcur{ tmpplab + y * width };
 
-        line_sum[y] = 0.0f;
-        line_sum[y + height] = 0.0f;
-        line_count_pels[y] = 0;
-
-        for (int x{ 0 }; x < width_mod8; x += 8)
+        if constexpr (mode == grayworld_mode::mean)
         {
-            r1 = Vec8f().load(r + x);
-            g1 = Vec8f().load(g + x);
-            b1 = Vec8f().load(b + x);
+            line_sum[y] = 0.0f;
+            line_sum[y + height] = 0.0f;
+            line_count_pels[y] = 0;
 
-            rgb2lab(r1, g1, b1, l_lab, a_lab, b_lab);
+            for (int x{ 0 }; x < width_mod8; x += 8)
+            {
+                r1 = Vec8f().load(r + x);
+                g1 = Vec8f().load(g + x);
+                b1 = Vec8f().load(b + x);
 
-            *(lcur++) = l_lab.extract(0);
-            *(lcur++) = l_lab.extract(1);
-            *(lcur++) = l_lab.extract(2);
-            *(lcur++) = l_lab.extract(3);
-            *(lcur++) = l_lab.extract(4);
-            *(lcur++) = l_lab.extract(5);
-            *(lcur++) = l_lab.extract(6);
-            *(lcur++) = l_lab.extract(7);
+                rgb2lab(r1, g1, b1, l_lab, a_lab, b_lab);
 
-            *(acur++) = a_lab.extract(0);
-            *(acur++) = a_lab.extract(1);
-            *(acur++) = a_lab.extract(2);
-            *(acur++) = a_lab.extract(3);
-            *(acur++) = a_lab.extract(4);
-            *(acur++) = a_lab.extract(5);
-            *(acur++) = a_lab.extract(6);
-            *(acur++) = a_lab.extract(7);
+                for (int i{ 0 }; i < 8; ++i)
+                {
+                    *(lcur++) = l_lab.extract(i);
+                    *(acur++) = a_lab.extract(i);
+                    *(bcur++) = b_lab.extract(i);
+                }
 
-            *(bcur++) = b_lab.extract(0);
-            *(bcur++) = b_lab.extract(1);
-            *(bcur++) = b_lab.extract(2);
-            *(bcur++) = b_lab.extract(3);
-            *(bcur++) = b_lab.extract(4);
-            *(bcur++) = b_lab.extract(5);
-            *(bcur++) = b_lab.extract(6);
-            *(bcur++) = b_lab.extract(7);
+                line_sum[y] += horizontal_add(a_lab);
+                line_sum[y + height] += horizontal_add(b_lab);
+                line_count_pels[y] += 8;
+            }
 
-            line_sum[y] += horizontal_add(a_lab);
-            line_sum[y + height] += horizontal_add(b_lab);
-            line_count_pels[y] += 8;
+            for (int x{ width_mod8 }; x < width; ++x)
+            {
+                rgb[0] = r[x];
+                rgb[1] = g[x];
+                rgb[2] = b[x];
+
+                rgb2lab_c(rgb, lab);
+
+                *(lcur++) = lab[0];
+                *(acur++) = lab[1];
+                *(bcur++) = lab[2];
+
+                line_sum[y] += lab[1];
+                line_sum[y + height] += lab[2];
+                line_count_pels[y]++;
+            }
         }
-
-        for (int x{ width_mod8 }; x < width; ++x)
+        else
         {
-            rgb[0] = r[x];
-            rgb[1] = g[x];
-            rgb[2] = b[x];
+            std::vector<float> m0(width);
+            std::vector<float> m1(width);
 
-            rgb2lab_c(rgb, lab);
+            for (int x{ 0 }; x < width_mod8; x += 8)
+            {
+                r1 = Vec8f().load(r + x);
+                g1 = Vec8f().load(g + x);
+                b1 = Vec8f().load(b + x);
 
-            *(lcur++) = lab[0];
-            *(acur++) = lab[1];
-            *(bcur++) = lab[2];
+                rgb2lab(r1, g1, b1, l_lab, a_lab, b_lab);
 
-            line_sum[y] += lab[1];
-            line_sum[y + height] += lab[2];
-            line_count_pels[y]++;
+                for (int i{ 0 }; i < 8; ++i)
+                {
+                    *(lcur++) = l_lab.extract(i);
+                    *(acur++) = a_lab.extract(i);
+                    *(bcur++) = b_lab.extract(i);
+                }
+
+                a_lab.store(&m0[x]);
+                b_lab.store(&m1[x]);
+            }
+
+            for (int x{ width_mod8 }; x < width; ++x)
+            {
+                rgb[0] = r[x];
+                rgb[1] = g[x];
+                rgb[2] = b[x];
+
+                rgb2lab_c(rgb, lab);
+
+                *(lcur++) = lab[0];
+                *(acur++) = lab[1];
+                *(bcur++) = lab[2];
+
+                m0.emplace_back(lab[1]);
+                m1.emplace_back(lab[2]);
+            }
+
+            const auto middleItr{ m0.begin() + m0.size() / 2 };
+            std::nth_element(m0.begin(), middleItr, m0.end());
+            line_sum[y] = (m0.size() % 2 == 0) ? ((*(std::max_element(m0.begin(), middleItr)) + *middleItr) / 2) : *middleItr;
+
+            const auto middleItr1{ m1.begin() + m1.size() / 2 };
+            std::nth_element(m1.begin(), middleItr1, m1.end());
+            line_sum[y + height] = (m1.size() % 2 == 0) ? ((*(std::max_element(m1.begin(), middleItr1)) + *middleItr1) / 2) : *middleItr1;
         }
 
         r += pitch;
@@ -131,6 +163,9 @@ void convert_frame_avx2(float* __restrict tmpplab, PVideoFrame& src, float* line
         b += pitch;
     }
 }
+
+template void convert_frame_avx2<grayworld_mode::mean>(float* __restrict tmpplab, PVideoFrame& src, float* line_sum, int* line_count_pels, const int pitch, const int width, const int height) noexcept;
+template void convert_frame_avx2<grayworld_mode::median>(float* __restrict tmpplab, PVideoFrame& src, float* line_sum, int* line_count_pels, const int pitch, const int width, const int height) noexcept;
 
 void correct_frame_avx2(PVideoFrame& dst, float* tmpplab, std::pair<float, float>& avg, const int pitch, const int width, const int height) noexcept
 {
@@ -157,32 +192,12 @@ void correct_frame_avx2(PVideoFrame& dst, float* tmpplab, std::pair<float, float
 
         for (int x{ 0 }; x < width_mod8; x += 8)
         {
-            l_lab.insert(0, *lcur++);
-            l_lab.insert(1, *lcur++);
-            l_lab.insert(2, *lcur++);
-            l_lab.insert(3, *lcur++);
-            l_lab.insert(4, *lcur++);
-            l_lab.insert(5, *lcur++);
-            l_lab.insert(6, *lcur++);
-            l_lab.insert(7, *lcur++);
-
-            a_lab.insert(0, *acur++);
-            a_lab.insert(1, *acur++);
-            a_lab.insert(2, *acur++);
-            a_lab.insert(3, *acur++);
-            a_lab.insert(4, *acur++);
-            a_lab.insert(5, *acur++);
-            a_lab.insert(6, *acur++);
-            a_lab.insert(7, *acur++);
-
-            b_lab.insert(0, *bcur++);
-            b_lab.insert(1, *bcur++);
-            b_lab.insert(2, *bcur++);
-            b_lab.insert(3, *bcur++);
-            b_lab.insert(4, *bcur++);
-            b_lab.insert(5, *bcur++);
-            b_lab.insert(6, *bcur++);
-            b_lab.insert(7, *bcur++);
+            for (int i{ 0 }; i < 8; ++i)
+            {
+                l_lab.insert(i, *lcur++);
+                a_lab.insert(i, *acur++);
+                b_lab.insert(i, *bcur++);
+            }
 
             // subtract the average for the color channels
             a_lab -= Vec8f(avg.first);

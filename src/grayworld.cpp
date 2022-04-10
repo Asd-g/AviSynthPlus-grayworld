@@ -35,6 +35,7 @@ void lab2rgb_c(const float lab[3], float rgb[3])
     apply_matrix_c(lms2rgb, lms, rgb);
 }
 
+template <grayworld_mode mode>
 static void convert_frame_c(float* __restrict tmpplab, PVideoFrame& src, float* line_sum, int* line_count_pels, const int pitch, const int width, const int height) noexcept
 {
     const float* r{ reinterpret_cast<const float*>(src->GetReadPtr(PLANAR_R)) };
@@ -50,25 +51,59 @@ static void convert_frame_c(float* __restrict tmpplab, PVideoFrame& src, float* 
         float* bcur{ tmpplab + y * width + 2 * width * height };
         float* lcur{ tmpplab + y * width };
 
-        line_sum[y] = 0.0f;
-        line_sum[y + height] = 0.0f;
-        line_count_pels[y] = 0;
-
-        for (int x{ 0 }; x < width; ++x)
+        if constexpr (mode == grayworld_mode::mean)
         {
-            rgb[0] = r[x];
-            rgb[1] = g[x];
-            rgb[2] = b[x];
+            line_sum[y] = 0.0f;
+            line_sum[y + height] = 0.0f;
+            line_count_pels[y] = 0;
 
-            rgb2lab_c(rgb, lab);
+            for (int x{ 0 }; x < width; ++x)
+            {
+                rgb[0] = r[x];
+                rgb[1] = g[x];
+                rgb[2] = b[x];
 
-            *(lcur++) = lab[0];
-            *(acur++) = lab[1];
-            *(bcur++) = lab[2];
+                rgb2lab_c(rgb, lab);
 
-            line_sum[y] += lab[1];
-            line_sum[y + height] += lab[2];
-            line_count_pels[y]++;
+                *(lcur++) = lab[0];
+                *(acur++) = lab[1];
+                *(bcur++) = lab[2];
+
+                line_sum[y] += lab[1];
+                line_sum[y + height] += lab[2];
+                line_count_pels[y]++;
+            }
+        }
+        else
+        {
+            std::vector<float> m0;
+            m0.reserve(width);
+            std::vector<float> m1;
+            m1.reserve(width);
+
+            for (int x{ 0 }; x < width; ++x)
+            {
+                rgb[0] = r[x];
+                rgb[1] = g[x];
+                rgb[2] = b[x];
+
+                rgb2lab_c(rgb, lab);
+
+                *(lcur++) = lab[0];
+                *(acur++) = lab[1];
+                *(bcur++) = lab[2];
+
+                m0.emplace_back(lab[1]);
+                m1.emplace_back(lab[2]);
+            }
+
+            const auto middleItr{ m0.begin() + m0.size() / 2 };
+            std::nth_element(m0.begin(), middleItr, m0.end());
+            line_sum[y] = (m0.size() % 2 == 0) ? ((*(std::max_element(m0.begin(), middleItr)) + *middleItr) / 2) : *middleItr;
+
+            const auto middleItr1{ m1.begin() + m1.size() / 2 };
+            std::nth_element(m1.begin(), middleItr1, m1.end());
+            line_sum[y + height] = (m1.size() % 2 == 0) ? ((*(std::max_element(m1.begin(), middleItr1)) + *middleItr1) / 2) : *middleItr1;
         }
 
         r += pitch;
@@ -77,20 +112,46 @@ static void convert_frame_c(float* __restrict tmpplab, PVideoFrame& src, float* 
     }
 }
 
+template <grayworld_mode mode>
 static std::pair<float, float> compute_correction(float* line_sum, int* line_count_pels, const int height)
 {
-    float asum = 0.0f;
-    float bsum = 0.0f;
-    int pixels = 0;
-
-    for (int y{ 0 }; y < height; ++y)
+    if constexpr (mode == grayworld_mode::mean)
     {
-        asum += line_sum[y];
-        bsum += line_sum[y + height];
-        pixels += line_count_pels[y];
-    }
+        float asum{ 0.0f };
+        float bsum{ 0.0f };
+        int pixels{ 0 };
 
-    return std::make_pair<float, float>(asum / pixels, bsum / pixels);
+        for (int y{ 0 }; y < height; ++y)
+        {
+            asum += line_sum[y];
+            bsum += line_sum[y + height];
+            pixels += line_count_pels[y];
+        }
+
+        return std::make_pair<float, float>(asum / pixels, bsum / pixels);
+    }
+    else
+    {
+        std::vector<float> am;
+        am.reserve(height);
+        std::vector<float> bm;
+        bm.reserve(height);
+
+        for (int y{ 0 }; y < height; ++y)
+        {
+            am.emplace_back(line_sum[y]);
+            bm.emplace_back(line_sum[y + height]);
+        }
+
+        const auto middleItr{ am.begin() + am.size() / 2 };
+        std::nth_element(am.begin(), middleItr, am.end());
+
+        const auto middleItr1{ bm.begin() + bm.size() / 2 };
+        std::nth_element(bm.begin(), middleItr1, bm.end());
+
+        return std::make_pair<float, float>((am.size() % 2 == 0) ? ((*(std::max_element(am.begin(), middleItr)) + *middleItr) / 2) : *middleItr,
+            (bm.size() % 2 == 0) ? ((*(std::max_element(bm.begin(), middleItr1)) + *middleItr1) / 2) : *middleItr1);
+    }
 }
 
 static void correct_frame_c(PVideoFrame& dst, float* tmpplab, std::pair<float, float>& avg, const int pitch, const int width, const int height) noexcept
@@ -131,7 +192,7 @@ static void correct_frame_c(PVideoFrame& dst, float* tmpplab, std::pair<float, f
     }
 }
 
-grayworld::grayworld(PClip _child, int opt, IScriptEnvironment* env)
+grayworld::grayworld(PClip _child, int opt, grayworld_mode mode, IScriptEnvironment* env)
     : GenericVideoFilter(_child)
 {
     if (!vi.IsRGB() || !vi.IsPlanar() || vi.ComponentSize() != 4)
@@ -153,22 +214,62 @@ grayworld::grayworld(PClip _child, int opt, IScriptEnvironment* env)
 
     if ((avx512 && opt < 0) || opt == 3)
     {
-        convert = convert_frame_avx512;
+        if (mode == grayworld_mode::mean)
+        {
+            convert = convert_frame_avx512<grayworld_mode::mean>;
+            compute = compute_correction<grayworld_mode::mean>;
+        }
+        else
+        {
+            convert = convert_frame_avx512<grayworld_mode::median>;
+            compute = compute_correction<grayworld_mode::median>;
+        }
+
         correct = correct_frame_avx512;
     }
     else if ((avx2 && opt < 0) || opt == 2)
     {
-        convert = convert_frame_avx2;
+        if (mode == grayworld_mode::mean)
+        {
+            convert = convert_frame_avx2<grayworld_mode::mean>;
+            compute = compute_correction<grayworld_mode::mean>;
+        }
+        else
+        {
+            convert = convert_frame_avx2<grayworld_mode::median>;
+            compute = compute_correction<grayworld_mode::median>;
+        }
+
         correct = correct_frame_avx2;
     }
     else if ((sse2 && opt < 0) || opt == 1)
     {
-        convert = convert_frame_sse2;
+        if (mode == grayworld_mode::mean)
+        {
+            convert = convert_frame_sse2<grayworld_mode::mean>;
+            compute = compute_correction<grayworld_mode::mean>;
+        }
+        else
+        {
+            convert = convert_frame_sse2<grayworld_mode::median>;
+            compute = compute_correction<grayworld_mode::median>;
+        }
+
         correct = correct_frame_sse2;
     }
     else
     {
-        convert = convert_frame_c;
+        if (mode == grayworld_mode::mean)
+        {
+            convert = convert_frame_c<grayworld_mode::mean>;
+            compute = compute_correction<grayworld_mode::mean>;
+        }
+        else
+        {
+            convert = convert_frame_c<grayworld_mode::median>;
+            compute = compute_correction<grayworld_mode::median>;
+        }
+
         correct = correct_frame_c;
     }
 
@@ -188,7 +289,7 @@ PVideoFrame __stdcall grayworld::GetFrame(int n, IScriptEnvironment* env)
     const int height{ src->GetHeight() };
 
     convert(tmpplab.get(), src, line_sum.get(), line_count_pels.get(), pitch / 4, width, height);
-    avg = compute_correction(line_sum.get(), line_count_pels.get(), height);
+    avg = compute(line_sum.get(), line_count_pels.get(), height);
     correct(dst, tmpplab.get(), avg, dst_pitch / 4, width, height);
 
     if (vi.NumComponents() == 4)
@@ -199,9 +300,13 @@ PVideoFrame __stdcall grayworld::GetFrame(int n, IScriptEnvironment* env)
 
 AVSValue __cdecl Create_grayworld(AVSValue args, void* user_data, IScriptEnvironment* env)
 {
-    enum { CLIP, OPT };
+    enum { CLIP, OPT, CC };
 
-    return new grayworld(args[CLIP].AsClip(), args[OPT].AsInt(-1), env);
+    const int cc{ args[CC].AsInt(0) };
+    if (cc < 0 || cc > 1)
+        env->ThrowError("grayworld: cc must be either 0 or 1.");
+
+    return new grayworld(args[CLIP].AsClip(), args[OPT].AsInt(-1), (cc == 0) ? grayworld_mode::mean : grayworld_mode::median, env);
 }
 
 const AVS_Linkage* AVS_linkage;
@@ -211,7 +316,7 @@ const char* __stdcall AvisynthPluginInit3(IScriptEnvironment * env, const AVS_Li
 {
     AVS_linkage = vectors;
 
-    env->AddFunction("grayworld", "c[opt]i", Create_grayworld, 0);
+    env->AddFunction("grayworld", "c[opt]i[cc]i", Create_grayworld, 0);
 
     return "grayworld";
 }

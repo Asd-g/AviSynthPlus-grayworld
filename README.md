@@ -15,7 +15,7 @@ This is [a port of the FFmpeg filter grayworld](https://github.com/FFmpeg/FFmpeg
 ### Usage:
 
 ```
-grayworld (clip input, int "opt")
+grayworld (clip input, int "opt", int "cc")
 ```
 
 ### Parameters:
@@ -32,6 +32,12 @@ grayworld (clip input, int "opt")
     2: Use AVX2 code.\
     3: Use AVX512 code.\
     Default: -1.
+
+- cc\
+    Color correction mode.\
+    0: Mean.
+    1: Median.
+    Default: 0.
 
 ### Building:
 
