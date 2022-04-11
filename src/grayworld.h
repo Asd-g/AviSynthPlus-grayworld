@@ -36,8 +36,6 @@ enum class grayworld_mode
     median
 };
 
-template <grayworld_mode mode>
-void apply_matrix_c(const float matrix[3][3], const float input[3], float output[3]);
 void rgb2lab_c(const float rgb[3], float lab[3]);
 void lab2rgb_c(const float lab[3], float rgb[3]);
 
