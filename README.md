@@ -36,7 +36,7 @@ grayworld (clip input, int "opt", int "cc")
 - cc\
     Color correction mode.\
     0: Mean.\
-    1: Median.\
+    1: Median. This mode is not affected by extreme values in luminance or chrominance.\
     Default: 0.
 
 ### Building:
