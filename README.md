@@ -8,14 +8,20 @@ This is [a port of the FFmpeg filter grayworld](https://github.com/FFmpeg/FFmpeg
 
 ### Requirements:
 
-- AviSynth+ 3.6 or later
+- AviSynth+ 3.6 or later and/or VapourSynth R55 or later
 
 - Microsoft VisualC++ Redistributable Package 2022 (can be downloaded from [here](https://github.com/abbodi1406/vcredist/releases)) (Windows only)
 
-### Usage:
+### AviSynth+ usage:
 
 ```
 grayworld (clip input, int "opt", int "cc")
+```
+
+### VapourSynth usage:
+
+```
+grwrld.grayworld(clip input, int "opt", int "cc")
 ```
 
 ### Parameters:
@@ -51,6 +57,14 @@ grayworld (clip input, int "opt", int "cc")
         - C++17 compiler
         - CMake >= 3.16
     ```
+
+    CMake options:
+
+    ```
+    -DBUILD_AVS_LIB=ON  # Build library for AviSynth+.
+    -DBUILD_VS_LIB=ON   # Build library for VapourSynth.
+    ```
+
     ```
     git clone https://github.com/Asd-g/AviSynthPlus-grayworld && \
     cd AviSynthPlus-grayworld && \

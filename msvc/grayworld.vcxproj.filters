@@ -13,20 +13,24 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\src\grayworld.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\grayworld_sse2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\grayworld_avx2.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\grayworld_avx512.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+    <Filter Include="Header Files\common">
+      <UniqueIdentifier>{e249e599-be66-43d0-9a5f-d1c8e274b0e5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\avs">
+      <UniqueIdentifier>{ff38e14e-1d3b-43c8-9dac-93fb95ec7975}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\vs">
+      <UniqueIdentifier>{e88f8a70-7a09-4b84-95ca-5dbc96d3b8f9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\common">
+      <UniqueIdentifier>{6b92e3ce-c073-462c-8df1-81cf574c3e4e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\avs">
+      <UniqueIdentifier>{3d57dc3a-a0c2-4e4b-a3f6-6e9e6d3249fb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vs">
+      <UniqueIdentifier>{892571c7-43de-48db-87d5-dfa4d25d37b6}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\src\grayworld.rc">
@@ -34,8 +38,64 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\src\grayworld.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="..\src\common\common.h">
+      <Filter>Header Files\common</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\common\common_avx2.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\common_avx512.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\common\common_sse2.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\avs\grayworld_avs.h">
+      <Filter>Header Files\avs</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\vs\grayworld_vs.h">
+      <Filter>Header Files\vs</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\common\common_avx512.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\common_sse2.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\common_c.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\common\common_avx2.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\avs\grayworld_avs.cpp">
+      <Filter>Source Files\avs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\avs\grayworld_avs_avx2.cpp">
+      <Filter>Source Files\avs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\avs\grayworld_avs_avx512.cpp">
+      <Filter>Source Files\avs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\avs\grayworld_avs_sse2.cpp">
+      <Filter>Source Files\avs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vs\grayworld_vs.cpp">
+      <Filter>Source Files\vs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vs\grayworld_vs_sse2.cpp">
+      <Filter>Source Files\vs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vs\grayworld_vs_avx2.cpp">
+      <Filter>Source Files\vs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\vs\grayworld_vs_avx512.cpp">
+      <Filter>Source Files\vs</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\VCL2\instrset_detect.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
