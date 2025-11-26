@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "avisynth.h"
+#include "avisynth/avisynth.h"
 #include "../common/common.h"
 
 template <grayworld_mode mode>

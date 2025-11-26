@@ -56,6 +56,7 @@ grwrld.grayworld(clip input, int "opt", int "cc")
         - Git
         - C++17 compiler
         - CMake >= 3.16
+        - avisynthplus
     ```
 
     CMake options:
