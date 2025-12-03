@@ -26,52 +26,55 @@ grwrld.grayworld(clip input, int "opt", int "cc")
 
 ### Parameters:
 
-- input\
-    A clip to process.\
+- input<br>
+    A clip to process.<br>
     Must be in RGB(A) 32-bit planar format and in linear light.
 
 - opt\
-    Sets which cpu optimizations to use.\
-    -1: Auto-detect.\
-    0: Use C++ code.\
-    1: Use SSE2 code.\
-    2: Use AVX2 code.\
-    3: Use AVX512 code.\
+    Sets which cpu optimizations to use.<br>
+    -1: Auto-detect.<br>
+    0: Use C++ code.<br>
+    1: Use SSE2 code.<br>
+    2: Use AVX2 code.<br>
+    3: Use AVX512 code.<br>
     Default: -1.
 
 - cc\
-    Color correction mode.\
-    0: Mean.\
-    1: Median. This mode is not affected by extreme values in luminance or chrominance.\
+    Color correction mode.<br>
+    0: Mean.<br>
+    1: Median. This mode is not affected by extreme values in luminance or chrominance.<br>
     Default: 0.
 
 ### Building:
 
-- Windows\
-    Use solution files.
+#### Prerequisites
+- **Git**
+- **CMake** >= 3.25
+- A **C++17 capable compiler**
 
-- Linux
+1.  Clone the repository:
+
     ```
-    Requirements:
-        - Git
-        - C++17 compiler
-        - CMake >= 3.16
+    git clone --depth 1 https://github.com/Asd-g/AviSynthPlus-grayworld
+    cd AviSynthPlus-grayworld
     ```
 
+2.  Configure and build the project:
+
+    ```
     CMake options:
 
-    ```
     -DBUILD_AVS_LIB=ON  # Build library for AviSynth+.
     -DBUILD_VS_LIB=ON   # Build library for VapourSynth.
     ```
 
     ```
-    git clone https://github.com/Asd-g/AviSynthPlus-grayworld && \
-    cd AviSynthPlus-grayworld && \
-    mkdir build && \
-    cd build && \
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build -j$(nproc)
+    ```
 
-    cmake ..
-    make -j$(nproc)
-    sudo make install
+3.  (Linux) Install the plugin (optional):
+
+    ```
+    sudo cmake --install build
     ```
