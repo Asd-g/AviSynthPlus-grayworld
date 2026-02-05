@@ -135,9 +135,15 @@ static const VSFrame* VS_CC grayworldGetFrame(int n, int activationReason, void*
         const ptrdiff_t width{ vsapi->getFrameWidth(src, 0) };
         const ptrdiff_t height{ vsapi->getFrameHeight(src, 0) };
 
-        d->convert(d->tmpplab.get(), src, d->line_sum.get(), d->line_count_pels.get(), stride / 4, width, height, vsapi);
-        d->avg = d->compute(d->line_sum.get(), d->line_count_pels.get(), height);
-        d->correct(dst, d->tmpplab.get(), d->avg, stride / 4, width, height, vsapi);
+        std::pair<float, float> avg;
+
+        auto tmpplab{ std::make_unique<float[]>(width * height * 3) };
+        auto line_count_pels{ std::make_unique<int[]>(height) };
+        auto line_sum{ std::make_unique<float[]>(height * 2) };
+
+        d->convert(tmpplab.get(), src, line_sum.get(), line_count_pels.get(), stride / 4, width, height, vsapi);
+        avg = d->compute(line_sum.get(), line_count_pels.get(), height);
+        d->correct(dst, tmpplab.get(), avg, stride / 4, width, height, vsapi);
 
         vsapi->freeFrame(src);
         return dst;
@@ -239,10 +245,6 @@ static void VS_CC grayworldCreate(const VSMap* in, VSMap* out, [[maybe_unused]] 
 
             d->correct = correct_frame_c;
         }
-
-        d->tmpplab = std::make_unique<float[]>(d->vi->height * d->vi->width * 3);
-        d->line_count_pels = std::make_unique<int[]>(d->vi->height);
-        d->line_sum = std::make_unique<float[]>(d->vi->height * 2);
     }
     catch (const std::string& error)
     {
