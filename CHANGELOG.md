@@ -1,3 +1,6 @@
+##### 1.0.3
+    VapourSynth: fixed MT conditional race.
+
 ##### 1.0.2
     Added parameter `cc`.
 

@@ -6,7 +6,7 @@ if (NOT CMAKE_GENERATOR MATCHES "Visual Studio")
     endif()
 endif()
 
-project(grayworld VERSION 1.0.2 LANGUAGES CXX)
+project(grayworld VERSION 1.0.3 LANGUAGES CXX)
 
 option(BUILD_AVS_LIB "Build library for AviSynth+" ON)
 option(BUILD_VS_LIB "Build library for VapourSynth" ON)
