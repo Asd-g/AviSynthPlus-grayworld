@@ -123,6 +123,7 @@ grayworld::grayworld(PClip _child, int opt, grayworld_mode mode, IScriptEnvironm
     if (opt < -1 || opt > 3)
         env->ThrowError("grayworld: opt must be between -1..3.");
 
+#ifdef HAS_SSE2
     const bool avx512{ !!(env->GetCPUFlags() & CPUF_AVX512F) };
     if (!avx512 && opt == 3)
         env->ThrowError("grayworld: opt=3 requires AVX512F.");
@@ -182,6 +183,7 @@ grayworld::grayworld(PClip _child, int opt, grayworld_mode mode, IScriptEnvironm
     }
     else
     {
+#endif
         if (mode == grayworld_mode::mean)
         {
             convert = convert_frame_c<grayworld_mode::mean>;
@@ -194,7 +196,9 @@ grayworld::grayworld(PClip _child, int opt, grayworld_mode mode, IScriptEnvironm
         }
 
         correct = correct_frame_c;
+#ifdef HAS_SSE2
     }
+#endif
 
     tmpplab = std::make_unique<float[]>(vi.height * vi.width * 3);
     line_count_pels = std::make_unique<int[]>(vi.height);

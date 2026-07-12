@@ -6,7 +6,7 @@ if (NOT CMAKE_GENERATOR MATCHES "Visual Studio")
     endif()
 endif()
 
-project(grayworld VERSION 1.0.3 LANGUAGES CXX)
+project(grayworld VERSION 1.0.4 LANGUAGES CXX)
 
 option(BUILD_AVS_LIB "Build library for AviSynth+" ON)
 option(BUILD_VS_LIB "Build library for VapourSynth" ON)
@@ -14,22 +14,34 @@ option(BUILD_VS_LIB "Build library for VapourSynth" ON)
 message(STATUS "Build library for AviSynth - ${BUILD_AVS_LIB}")
 message(STATUS "Build library for VapourSynth - ${BUILD_VS_LIB}")
 
-add_library(${PROJECT_NAME} MODULE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_c.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_sse2.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_avx2.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_avx512.cpp"
-)
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i.86")
+    set(IS_X86_AMD64 ON)
+else()
+    set(IS_X86_AMD64 OFF)
+endif()
+
+add_library(${PROJECT_NAME} MODULE "${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_c.cpp")
+
+if (${IS_X86_AMD64})
+    target_sources(${PROJECT_NAME} PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_sse2.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_avx2.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_avx512.cpp"
+    )
+endif()
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/common)
 
 if (BUILD_AVS_LIB)
-    target_sources(${PROJECT_NAME} PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_sse2.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_avx2.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_avx512.cpp"
-    )
+    target_sources(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs.cpp")
+
+    if (${IS_X86_AMD64})
+        target_sources(${PROJECT_NAME} PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_sse2.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_avx2.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_avx512.cpp"
+        )
+    endif()
 
     list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
     find_package(AvisynthPlus REQUIRED)
@@ -38,32 +50,49 @@ if (BUILD_AVS_LIB)
 endif()
 
 if (BUILD_VS_LIB)
-    target_sources(${PROJECT_NAME} PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_sse2.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_avx2.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_avx512.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/VCL2/instrset_detect.cpp"
-    )
+    target_sources(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs.cpp")
 
-    if (NOT WIN32)
-        target_include_directories(${PROJECT_NAME} PRIVATE /usr/local/include/vapoursynth)
+    if (${IS_X86_AMD64})
+        target_sources(${PROJECT_NAME} PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_sse2.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_avx2.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_avx512.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/VCL2/instrset_detect.cpp"
+        )
+    endif()
+
+    if (SKBUILD)
+        find_package(Python COMPONENTS Interpreter REQUIRED)
+        execute_process(
+            COMMAND "${Python_EXECUTABLE}" -c "import vapoursynth; print(vapoursynth.get_include())"
+            OUTPUT_VARIABLE VAPOURSYNTH_INCLUDE_DIR
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        target_include_directories(${PROJECT_NAME} PRIVATE "${VAPOURSYNTH_INCLUDE_DIR}")
+    else()
+        if (NOT WIN32)
+            target_include_directories(${PROJECT_NAME} PRIVATE /usr/local/include/vapoursynth)
+        endif()
     endif()
 endif()
 
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
-set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_avx2.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX2>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx2;-mfma>")
-set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_avx512.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX512>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx512f;-mavx512bw;-mavx512dq;-mavx512vl;-mavx512cd;-mfma>")
+if (${IS_X86_AMD64})
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_avx2.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX2>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx2;-mfma>")
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/common/common_avx512.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX512>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx512f;-mavx512bw;-mavx512dq;-mavx512vl;-mavx512cd;-mfma>")
 
-if (BUILD_AVS_LIB)
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_avx2.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX2>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx2;-mfma>")
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_avx512.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX512>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx512f;-mavx512bw;-mavx512dq;-mavx512vl;-mavx512cd;-mfma>")
-endif()
+    if (BUILD_AVS_LIB)
+        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_avx2.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX2>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx2;-mfma>")
+        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/avs/grayworld_avs_avx512.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX512>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx512f;-mavx512bw;-mavx512dq;-mavx512vl;-mavx512cd;-mfma>")
+    endif()
 
-if (BUILD_VS_LIB)
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_avx2.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX2>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx2;-mfma>")
-    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_avx512.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX512>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx512f;-mavx512bw;-mavx512dq;-mavx512vl;-mavx512cd;-mfma>")
+    if (BUILD_VS_LIB)
+        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_avx2.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX2>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx2;-mfma>")
+        set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/vs/grayworld_vs_avx512.cpp" PROPERTIES COMPILE_OPTIONS "$<$<CXX_COMPILER_ID:MSVC>:/arch:AVX512>$<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-mavx512f;-mavx512bw;-mavx512dq;-mavx512vl;-mavx512cd;-mfma>")
+    endif()
+
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAS_SSE2)
 endif()
 
 if (NOT CMAKE_GENERATOR MATCHES "Visual Studio")
@@ -83,20 +112,24 @@ endif()
 
 target_compile_options(${PROJECT_NAME} PRIVATE "$<$<BOOL:${MSVC}>:/EHsc>")
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
+if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM")
     target_compile_options(${PROJECT_NAME} PRIVATE "/fp:precise")
 endif()
 
-if(MINGW)
+if (MINGW)
     set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
-elseif(UNIX)
+elseif (UNIX)
     string(TOLOWER "${PROJECT_NAME}" FILE_NAME_OUTPUT)
     set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${FILE_NAME_OUTPUT}.${PROJECT_VERSION}")
 endif()
 
+if (APPLE)
+    set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".dylib")
+endif()
+
 if (WIN32)
     string(REGEX MATCH "^([0-9.]+)" CORE_VERSION_STRING "${PROJECT_VERSION}")
-    if(NOT CORE_VERSION_STRING)
+    if (NOT CORE_VERSION_STRING)
         message(WARNING "Could not parse core version from '${PROJECT_VERSION}'. Defaulting to 0.0.0.")
         set(CORE_VERSION_STRING "0.0.0")
     endif()
@@ -109,30 +142,30 @@ if (WIN32)
     set(VERSION_PATCH 0)
     set(VERSION_BUILD 0)
 
-    if(NUM_PARTS GREATER_EQUAL 1)
+    if (NUM_PARTS GREATER_EQUAL 1)
         list(GET VERSION_NUMERIC_PARTS_LIST 0 VERSION_MAJOR)
     endif()
 
-    if(NUM_PARTS GREATER_EQUAL 2)
+    if (NUM_PARTS GREATER_EQUAL 2)
         list(GET VERSION_NUMERIC_PARTS_LIST 1 VERSION_MINOR)
     endif()
 
-    if(NUM_PARTS GREATER_EQUAL 3)
+    if (NUM_PARTS GREATER_EQUAL 3)
         list(GET VERSION_NUMERIC_PARTS_LIST 2 VERSION_PATCH)
     endif()
 
-    if(NUM_PARTS GREATER_EQUAL 4)
+    if (NUM_PARTS GREATER_EQUAL 4)
         list(GET VERSION_NUMERIC_PARTS_LIST 3 VERSION_BUILD)
     endif()
 
-    if(PROJECT_VERSION MATCHES "-")
+    if (PROJECT_VERSION MATCHES "-")
         set(PROJECT_IS_PRERELEASE 1)
     else()
         set(PROJECT_IS_PRERELEASE 0)
     endif()
 
-    if(NOT CMAKE_CONFIGURATION_TYPES)
-        if(CMAKE_BUILD_TYPE MATCHES "^Debug$")
+    if (NOT CMAKE_CONFIGURATION_TYPES)
+        if (CMAKE_BUILD_TYPE MATCHES "^Debug$")
             set(PROJECT_DEBUG_BUILD_VALUE 1)
         else()
             set(PROJECT_DEBUG_BUILD_VALUE 0)
@@ -159,31 +192,35 @@ if (WIN32)
 
     target_sources(${PROJECT_NAME} PRIVATE "${RC_FILE_OUT}")
 
-    if(MSVC)
+    if (MSVC)
         set_source_files_properties("${RC_FILE_OUT}" PROPERTIES
             VS_RESOURCE_GENERATOR "RC")
     endif()
 endif()
 
-if(UNIX)
-    include(GNUInstallDirs)
+if (SKBUILD)
+    install(TARGETS ${PROJECT_NAME} DESTINATION .)
+else()
+    if (UNIX)
+        include(GNUInstallDirs)
 
-    if (BUILD_AVS_LIB)
-        INSTALL(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/avisynth")
-    endif()
+        if (BUILD_AVS_LIB)
+            INSTALL(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/avisynth")
+        endif()
 
-    if (BUILD_VS_LIB)
-        INSTALL(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/vapoursynth")
-    endif()
+        if (BUILD_VS_LIB)
+            INSTALL(TARGETS ${PROJECT_NAME} LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}/vapoursynth")
+        endif()
 
-    # uninstall target
-    if(NOT TARGET uninstall)
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
-        IMMEDIATE @ONLY)
+        # uninstall target
+        if (NOT TARGET uninstall)
+        configure_file(
+            "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
+            "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+            IMMEDIATE @ONLY)
 
-    add_custom_target(uninstall
-        COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
+        add_custom_target(uninstall
+            COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
+        endif()
     endif()
 endif()

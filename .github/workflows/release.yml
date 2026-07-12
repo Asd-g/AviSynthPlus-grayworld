@@ -1,0 +1,173 @@
+name: Build Release Artifacts
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build-non-windows-wheel:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: linux_x86_64
+          - os: ubuntu-24.04-arm
+            arch: linux_aarch64
+          - os: macos-15-intel
+            arch: macosx_x86_64
+          - os: macos-15
+            arch: macosx_arm64
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - uses: pypa/cibuildwheel@v4.1.0
+      env:
+        CIBW_BUILD: cp314-*
+        CIBW_BUILD_FRONTEND: uv
+        CIBW_ENVIRONMENT_MACOS: >
+          MACOSX_DEPLOYMENT_TARGET=15
+        CIBW_BEFORE_ALL_LINUX: |
+          set -e
+          if command -v dnf >/dev/null 2>&1; then
+            dnf install -y epel-release dnf-plugins-core
+            dnf -y install gcc gcc-c++ cmake ninja-build python3-pip
+          else
+            apk add --no-cache gcc g++ cmake ninja python3 py3-pip
+          fi
+        CIBW_BEFORE_ALL_MACOS: |
+          brew install cmake nasm ninja
+      with:
+        output-dir: dist
+        extras: uv
+
+    - name: Build sdist
+      if: runner.os == 'Linux' && matrix.arch == 'linux_x86_64'
+      run: |
+        python3 -m pip install build
+        python3 -m build --sdist --outdir dist
+
+    - name: Test macOS Wheel
+      if: runner.os == 'macOS'
+      run: |
+        export HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+        brew install vapoursynth
+        BREW_PREFIX=$(brew --prefix)
+
+        python3 -m venv test_env
+        source test_env/bin/activate
+
+        export LIBRARY_PATH="$BREW_PREFIX/lib:$LIBRARY_PATH"
+        export PKG_CONFIG_PATH="$BREW_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
+        export DYLD_FALLBACK_LIBRARY_PATH="$BREW_PREFIX/lib:$DYLD_FALLBACK_LIBRARY_PATH"
+
+        pip install --upgrade pip
+        pip install vapoursynth
+        pip install dist/*macosx*.whl
+
+        echo "Locating installed plugin..."
+        PLUGIN_PATH=$(python3 -c "import vapoursynth, os, glob; d = os.path.join(os.path.dirname(vapoursynth.__file__), 'plugins'); print(glob.glob(os.path.join(d, '*grayworld*'))[0])")
+        echo "Plugin located at: $PLUGIN_PATH"
+
+        echo "--- Checking dynamic dependencies (otool) ---"
+        otool -L "$PLUGIN_PATH"
+
+        echo "Testing VapourSynth Autoloading..."
+        python3 -c "import vapoursynth, os; core = vapoursynth.core; plugins = [p.name for p in core.plugins()]; print('Successfully loaded plugins:', plugins); p_dir = os.path.join(os.path.dirname(vapoursynth.__file__), 'plugins'); print('Contents of plugins directory:', os.listdir(p_dir) if os.path.exists(p_dir) else 'DIR NOT FOUND'); assert any('grayworld' in p.lower() for p in plugins), 'Plugin failed to autoload!'; print('✅ SUCCESS: Plugin autoloaded correctly!')"
+
+    - name: Test Linux Wheel
+      if: runner.os == 'Linux'
+      run: |
+        python3 -m venv test_env
+        source test_env/bin/activate
+
+        pip install --upgrade pip
+        pip install vapoursynth
+        pip install dist/*manylinux*.whl
+
+        echo "Locating installed plugin..."
+        PLUGIN_PATH=$(python3 -c "import vapoursynth, os, glob; d = os.path.join(os.path.dirname(vapoursynth.__file__), 'plugins'); print(glob.glob(os.path.join(d, '*grayworld*'))[0])")
+        echo "Plugin located at: $PLUGIN_PATH"
+
+        echo "--- Checking dynamic dependencies (ldd) ---"
+        ldd "$PLUGIN_PATH"
+
+        echo "Testing VapourSynth Autoloading..."
+        python3 -c "import vapoursynth, os; core = vapoursynth.core; plugins = [p.name for p in core.plugins()]; print('Successfully loaded plugins:', plugins); p_dir = os.path.join(os.path.dirname(vapoursynth.__file__), 'plugins'); print('Contents of plugins directory:', os.listdir(p_dir) if os.path.exists(p_dir) else 'DIR NOT FOUND'); assert any('grayworld' in p.lower() for p in plugins), 'Plugin failed to autoload!'; print('✅ SUCCESS: Plugin autoloaded correctly!')"
+
+    - uses: actions/upload-artifact@v7.0.1
+      with:
+        name: grayworld-${{ matrix.arch }}
+        path: dist
+
+  build-windows-wheel:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - uses: msys2/setup-msys2@v2.32.0
+      with:
+        msystem: UCRT64
+        update: true
+        install: >-
+          mingw-w64-ucrt-x86_64-cmake
+          mingw-w64-ucrt-x86_64-gcc
+          mingw-w64-ucrt-x86_64-ninja
+          mingw-w64-ucrt-x86_64-python
+          mingw-w64-ucrt-x86_64-python-pip
+          mingw-w64-ucrt-x86_64-python-wheel
+          git
+
+    - name: Build Dependencies and Plugin
+      run: |
+        git config --global --add safe.directory /github/workspace
+        if [ "${{ github.ref_type }}" = "tag" ]; then
+          export SETUPTOOLS_SCM_PRETEND_VERSION="${{ github.ref_name }}"
+        fi
+
+        python -m pip install build scikit-build-core --break-system-packages
+        export LDFLAGS="-static-libgcc -static-libstdc++ -static"
+        python -m build --outdir dist
+
+    - name: Test Windows Wheel
+      run: |
+        echo "Creating isolated Python virtual environment..."
+        python -m venv test_env
+        source test_env/bin/activate
+
+        pip install --upgrade pip
+        pip install vapoursynth
+        pip install dist/*ucrt_gnu.whl
+
+        echo "Locating installed plugin..."
+        PLUGIN_PATH=$(python -c "import vapoursynth, os, glob; d = os.path.join(os.path.dirname(vapoursynth.__file__), 'plugins'); print(glob.glob(os.path.join(d, '*grayworld*'))[0].replace('\\\\', '/'))")
+        echo "Plugin located at: $PLUGIN_PATH"
+
+        echo "--- Checking dynamic dependencies (ldd) ---"
+        ldd "$PLUGIN_PATH"
+
+        echo "Testing VapourSynth Autoloading..."
+        python3 -c "import vapoursynth, os; core = vapoursynth.core; plugins = [p.name for p in core.plugins()]; print('Successfully loaded plugins:', plugins); p_dir = os.path.join(os.path.dirname(vapoursynth.__file__), 'plugins'); print('Contents of plugins directory:', os.listdir(p_dir) if os.path.exists(p_dir) else 'DIR NOT FOUND'); assert any('grayworld' in p.lower() for p in plugins), 'Plugin failed to autoload!'; print('SUCCESS: Plugin autoloaded correctly!')"
+
+    - name: Retag Wheel for Distribution
+      run: |
+        echo "Test passed! Retagging wheel to win_amd64 for standard Windows users..."
+        python -m wheel tags --platform-tag=win_amd64 --remove dist/*.whl
+
+    - uses: actions/upload-artifact@v7.0.1
+      with:
+        name: grayworld-sdist
+        path: dist/*.tar.gz
+
+    - uses: actions/upload-artifact@v7.0.1
+      with:
+        name: grayworld-win_amd64
+        path: dist/*.whl

@@ -1,7 +1,10 @@
 #include <string>
 
 #include "grayworld_vs.h"
+
+#ifdef HAS_SSE2
 #include "../VCL2/instrset.h"
+#endif
 
 using namespace std::literals;
 
@@ -183,6 +186,7 @@ static void VS_CC grayworldCreate(const VSMap* in, VSMap* out, [[maybe_unused]] 
         if (cc < 0 || cc > 1)
             throw "cc must be either 0 or 1."s;
 
+#ifdef HAS_SSE2
         const int iset{ instrset_detect() };
 
         if ((opt == -1 && iset >= 10) || opt == 3)
@@ -232,6 +236,7 @@ static void VS_CC grayworldCreate(const VSMap* in, VSMap* out, [[maybe_unused]] 
         }
         else
         {
+#endif
             if (cc == 0)
             {
                 d->convert = convert_frame_c<grayworld_mode::mean>;
@@ -244,7 +249,9 @@ static void VS_CC grayworldCreate(const VSMap* in, VSMap* out, [[maybe_unused]] 
             }
 
             d->correct = correct_frame_c;
+#ifdef HAS_SSE2
         }
+#endif
     }
     catch (const std::string& error)
     {

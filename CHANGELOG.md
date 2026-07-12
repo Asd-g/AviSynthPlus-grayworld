@@ -1,3 +1,6 @@
+##### 1.0.4
+    Added support for Apple platforms.
+
 ##### 1.0.3
     VapourSynth: fixed MT conditional race.
 
